@@ -1,2 +1,2 @@
 import 'nodelist-foreach-polyfill';
-import 'babel-polyfill';
+import '@babel/polyfill';
