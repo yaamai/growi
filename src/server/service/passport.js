@@ -6,7 +6,9 @@ const LdapStrategy = require('passport-ldapauth');
 const GoogleStrategy = require('passport-google-auth').Strategy;
 const GitHubStrategy = require('passport-github').Strategy;
 const TwitterStrategy = require('passport-twitter').Strategy;
+const GenericOidcStrategy = require('openid-client').Strategy;
 const SamlStrategy = require('passport-saml').Strategy;
+const OIDCIssuer = require('openid-client').Issuer;
 
 /**
  * the service class of Passport
@@ -45,6 +47,11 @@ class PassportService {
      * the flag whether TwitterStrategy is set up successfully
      */
     this.isTwitterStrategySetup = false;
+
+    /**
+     * the flag whether GenericOidcStrategy is set up successfully
+     */
+    this.isGenericOidcStrategySetup = false;
 
     /**
      * the flag whether SamlStrategy is set up successfully
@@ -452,6 +459,68 @@ class PassportService {
     debug('TwitterStrategy: reset');
     passport.unuse('twitter');
     this.isTwitterStrategySetup = false;
+  }
+
+  async setupGenericOidcStrategy() {
+    // check whether the strategy has already been set up
+    if (this.isGenericOidcStrategySetup) {
+      throw new Error('GenericOidcStrategy has already been set up');
+    }
+
+    const config = this.crowi.config;
+    const configManager = this.crowi.configManager;
+    const isGenericOidcEnabled = configManager.getConfig('crowi', 'security:passport-generic-oidc:isEnabled');
+
+    // when disabled
+    if (!isGenericOidcEnabled) {
+      return;
+    }
+
+    debug('GenericOidcStrategy: setting up..');
+
+    // setup client
+    // extend oidc request timeouts
+    OIDCIssuer.defaultHttpOptions = { timeout: 5000 };
+    const issuerHost = configManager.getConfig('crowi', 'security:passport-generic-oidc:issuerHost') || process.env.OAUTH_GENERIC_OIDC_ISSUER_HOST;
+    const clientId = configManager.getConfig('crowi', 'security:passport-generic-oidc:clientId') || process.env.OAUTH_GENERIC_OIDC_CLIENT_ID;
+    const clientSecret = configManager.getConfig('crowi', 'security:passport-generic-oidc:clientSecret') || process.env.OAUTH_GENERIC_OIDC_CLIENT_SECRET;
+    const redirectUri = (configManager.getConfig('crowi', 'app:siteUrl') != null)
+      ? urljoin(this.crowi.configManager.getSiteUrl(), '/passport/generic-oidc/callback')
+      : config.crowi['security:passport-generic-oidc:callbackUrl'] || process.env.OAUTH_GENERIC_OIDC_CALLBACK_URI; // DEPRECATED: backward compatible with v3.2.3 and below
+    const genericOidcIssuer = await OIDCIssuer.discover(issuerHost);
+    debug('Discovered issuer %s %O', genericOidcIssuer.issuer, genericOidcIssuer.metadata);
+
+    const client = new genericOidcIssuer.Client({
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uris: [redirectUri],
+      scope: 'openid email profile',
+      response: 'code',
+    });
+
+    passport.use('generic-oidc', new GenericOidcStrategy({ client },
+      ((tokenset, userinfo, done) => {
+        if (userinfo) {
+          return done(null, userinfo);
+        }
+
+        return done(null, false);
+
+      })));
+
+    this.isGenericOidcStrategySetup = true;
+    debug('GenericOidcStrategy: setup is done');
+  }
+
+  /**
+   * reset GenericOidcStrategy
+   *
+   * @memberof PassportService
+   */
+  resetGenericOidcStrategy() {
+    debug('GenericOidcStrategy: reset');
+    passport.unuse('generic-oidc');
+    this.isGenericOidcStrategySetup = false;
   }
 
   setupSamlStrategy() {

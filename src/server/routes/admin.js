@@ -1076,6 +1076,36 @@ module.exports = function(crowi, app) {
 
     return res.json({ status: true });
   };
+
+  actions.api.securityPassportGenericOidcSetting = async(req, res) => {
+    const form = req.form.settingForm;
+
+    if (!req.form.isValid) {
+      return res.json({ status: false, message: req.form.errors.join('\n') });
+    }
+
+    debug('form content', form);
+    await saveSettingAsync(form);
+    const config = await crowi.getConfig();
+
+
+    // reset strategy
+    await crowi.passportService.resetGenericOidcStrategy();
+    // setup strategy
+    if (Config.isEnabledPassportGenericOidc(config)) {
+      try {
+        await crowi.passportService.setupGenericOidcStrategy(true);
+      }
+      catch (err) {
+        // reset
+        await crowi.passportService.resetGenericOidcStrategy();
+        return res.json({ status: false, message: err.message });
+      }
+    }
+
+    return res.json({ status: true });
+  };
+
   actions.api.customizeSetting = function(req, res) {
     const form = req.form.settingForm;
 
