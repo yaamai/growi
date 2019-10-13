@@ -7,6 +7,8 @@ module.exports = function(crowi, app) {
   const { URL } = require('url');
   const ExternalAccount = crowi.model('ExternalAccount');
   const passportService = crowi.passportService;
+  const { configManager } = crowi;
+  const trustedRedirectHostList = configManager.getConfig('crowi', 'security:trustedRedirectHostList');
 
   /**
    * success handler
@@ -28,8 +30,11 @@ module.exports = function(crowi, app) {
 
       // prevention from open redirect
       try {
-        const redirectUrl = new URL(jumpTo, `${req.protocol}://${req.get('host')}`);
-        if (redirectUrl.hostname === req.hostname) {
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.headers['x-forwarded-host'] || req.get('host');
+
+        const redirectUrl = new URL(jumpTo, `${protocol}://${host}`);
+        if (redirectUrl.hostname === req.hostname || trustedRedirectHostList.includes(redirectUrl.hostname)) {
           return res.redirect(redirectUrl);
         }
         logger.warn('Requested redirect URL is invalid, redirect to root page');

@@ -6,6 +6,7 @@ const TYPES = {
   NUMBER:  { parse: (v) => { return parseInt(v, 10) } },
   STRING:  { parse: (v) => { return v } },
   BOOLEAN: { parse: (v) => { return envUtils.toBoolean(v) } },
+  STRING_ARRAY: { parse: (v) => { return v.split(',') } },
 };
 
 /**
@@ -219,6 +220,12 @@ const ENV_VAR_NAME_TO_CONFIG_INFO = {
     key:     'security:passport-saml:cert',
     type:    TYPES.STRING,
     default: null,
+  },
+  TRUSTED_REDIRECT_HOST_LIST: {
+    ns:      'crowi',
+    key:     'security:trustedRedirectHostList',
+    type:    TYPES.STRING_ARRAY,
+    default: [],
   },
 };
 
